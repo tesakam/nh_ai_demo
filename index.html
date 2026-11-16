@@ -65,6 +65,13 @@ svg{width:100%;height:auto;display:block}
 svg text{font-family:var(--body);fill:var(--muted);font-size:19px}
 ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 footer{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.snd{position:fixed;right:12px;bottom:12px;z-index:40;display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 14px;border-radius:999px;border:1.5px solid var(--green);background:var(--green);color:#fff;font:inherit;font-size:13px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer}
+.snd[aria-pressed="false"]{background:var(--surface);color:var(--muted);border-color:var(--line)}
+.snd svg{width:20px;height:20px;flex:none}
+.snd span{white-space:nowrap}
+.snd .ic-off,.snd[aria-pressed="false"] .ic-on{display:none}
+.snd[aria-pressed="false"] .ic-off{display:block}
+main{padding-bottom:84px}
 .guide-btn{align-self:flex-start;font:inherit;font-size:13px;font-weight:600;color:var(--safe);background:none;border:1.5px solid var(--line);border-radius:999px;padding:6px 14px;min-height:36px;cursor:pointer}
 main section{scroll-margin-top:120px}
 #tour-dim{position:fixed;inset:0;background:rgba(12,24,18,.62);z-index:10}
@@ -151,6 +158,12 @@ main section{scroll-margin-top:120px}
 </footer>
 </main>
 
+<audio id="bgm" src="bgm.mp3" loop preload="none"></audio>
+<button type="button" id="snd" class="snd" aria-pressed="true" aria-label="배경음악 끄기">
+  <svg class="ic-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+  <svg class="ic-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6"/><path d="m21 9-5 6"/></svg>
+  <span id="snd-t">소리 켜짐</span>
+</button>
 <div id="tour-dim" hidden></div>
 <div id="tour" role="dialog" aria-modal="false" aria-labelledby="tour-h" hidden>
   <div class="tour-step" id="tour-n"></div>
@@ -245,15 +258,28 @@ function tourShow(i){
   $('tour-prev').style.visibility = i ? 'visible' : 'hidden'; $('tour-next').textContent = i === TOUR.length - 1 ? '시작하기' : '다음';
   if (s.t){ const el = $(s.t); el.classList.add('spot'); if (s.t === 'result') window.scrollTo({top: 0}); else el.scrollIntoView({block: 'start'}); } else window.scrollTo({top: 0});
   $('tour-next').focus({preventScroll: true});
+  $('snd').style.bottom = ($('tour').offsetHeight + 24) + 'px';
 }
-function tourEnd(){ document.querySelectorAll('.spot').forEach(e => e.classList.remove('spot')); $('tour-dim').hidden = true; $('tour').hidden = true; tourAt = -1; window.scrollTo({top: 0});
+function tourEnd(){ document.querySelectorAll('.spot').forEach(e => e.classList.remove('spot')); $('tour-dim').hidden = true; $('tour').hidden = true; tourAt = -1; $('snd').style.bottom = ''; window.scrollTo({top: 0});
   try { localStorage.setItem('ews_tour_done', '1'); } catch (e) {} }
 $('tour-next').addEventListener('click', () => tourAt < TOUR.length - 1 ? tourShow(tourAt + 1) : tourEnd());
 $('tour-prev').addEventListener('click', () => tourAt > 0 && tourShow(tourAt - 1));
 $('tour-skip').addEventListener('click', tourEnd); $('tour-dim').addEventListener('click', tourEnd);
 $('tour-open').addEventListener('click', () => tourShow(0));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && tourAt >= 0) tourEnd(); });
-build(); load(1);
+// 배경음악: 작은 음량으로 재생. 브라우저가 자동 재생을 막으면 첫 터치에서 시작한다.
+const bgm = $('bgm'), snd = $('snd'); bgm.volume = 0.25;
+let wantSound = true; try { wantSound = localStorage.getItem('ews_bgm') !== 'off'; } catch (e) {}
+function sndUI(){ snd.setAttribute('aria-pressed', wantSound ? 'true' : 'false'); snd.setAttribute('aria-label', wantSound ? '배경음악 끄기' : '배경음악 켜기');
+  $('snd-t').textContent = !wantSound ? '소리 꺼짐' : (bgm.paused ? '화면을 누르면 재생' : '소리 켜짐'); }
+function tryPlay(){ if (!wantSound) return; try { const pr = bgm.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {} }
+snd.addEventListener('click', () => { wantSound = !wantSound; try { localStorage.setItem('ews_bgm', wantSound ? 'on' : 'off'); } catch (e) {}
+  if (wantSound) tryPlay(); else bgm.pause(); sndUI(); });
+bgm.addEventListener('play', sndUI); bgm.addEventListener('pause', sndUI);
+const firstTouch = () => { if (wantSound && bgm.paused) tryPlay(); };
+document.addEventListener('pointerdown', firstTouch); document.addEventListener('keydown', firstTouch);
+document.addEventListener('visibilitychange', () => { if (document.hidden) bgm.pause(); else if (wantSound) tryPlay(); });
+build(); load(1); sndUI(); tryPlay();
 let seen = false; try { seen = localStorage.getItem('ews_tour_done') === '1'; } catch (e) {}
 if (!seen) tourShow(0);
 </script>
